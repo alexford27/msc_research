@@ -21,7 +21,7 @@ Depends on solve_sir from the simulator module.
 """
 
 import numpy as np
-from ode_simulator import solve_sir   # adjust import path to your project layout
+from sir_inference.model.simulator import solve_sir
 
 
 # ----------------------------------------------------------------------
@@ -87,7 +87,7 @@ def log_likelihood(beta, gamma, t_obs, data, sigma,
 # ----------------------------------------------------------------------
 
 if __name__ == "__main__":
-    from ode_simulator import simulate_dataset
+    from sir_inference.model.simulator import simulate_dataset
 
     # --- Generate a dataset with KNOWN ground truth ---
     BETA_TRUE = 0.6

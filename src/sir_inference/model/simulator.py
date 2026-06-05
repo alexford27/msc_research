@@ -46,7 +46,7 @@ def sir_rhs(t, y, beta, gamma):
 
 
 def solve_sir(beta, gamma, t_eval, y0=(0.99, 0.01, 0.0),
-              t_span=None, rtol=1e-8, atol=1e-10):
+              t_span=None, rtol=1e-5, atol=1e-7):
     """
     Solve the SIR system forward and return the trajectory at t_eval.
 

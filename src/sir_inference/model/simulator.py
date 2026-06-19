@@ -179,7 +179,7 @@ if __name__ == "__main__":
     # --- Ground-truth settings (the values your inference will try to recover) ---
     BETA_TRUE = 0.6      # transmission rate
     GAMMA_TRUE = 0.2     # recovery rate  -> R0 = beta/gamma = 3.0
-    SIGMA = 0.02         # measurement noise std (fixed/known for the base case)
+    SIGMA = 0.1       # measurement noise std (fixed/known for the base case)
     T_OBS = np.linspace(0, 60, 30)   # 30 evenly spaced observation times over 60 days
     Y0 = (0.99, 0.01, 0.0)           # 1% initially infectious
 

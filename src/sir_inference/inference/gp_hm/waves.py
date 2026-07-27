@@ -32,6 +32,7 @@ from sir_inference.inference.gp_hm.emulator import (
     FEATURE_NAMES, latin_hypercube_design, evaluate_design, fit_emulator)
 from sir_inference.inference.gp_hm.implausability import (
     observed_features_and_noise, implausibility)
+from sir_inference.inference.gp_hm.post_process import sample_uniform
 
 
 def sample_in_region(emulators, z_obs, obs_noise_var, threshold,
@@ -69,7 +70,7 @@ def sample_in_region(emulators, z_obs, obs_noise_var, threshold,
 def run_waves(t_eval, beta_true, gamma_true, sigma, y0=(0.99, 0.01, 0.0),
               n_initial=100, n_per_wave=30, n_waves=3, threshold=3.0,
               grid_n=120, beta_range=(0.0, 2.0), gamma_range=(0.0, 1.0),
-              seed=0, verbose=True):
+              seed=2327, verbose=True):
     """
     Run wave-based history matching. Returns a dict of results + per-wave history.
     """
@@ -146,7 +147,7 @@ def run_waves(t_eval, beta_true, gamma_true, sigma, y0=(0.99, 0.01, 0.0),
 
 # ----------------------------------------------------------------------
 # DEMO: run waves and plot the region shrinking
-# ----------------------------------------------------------------------
+# ------------------------------------------------------------------
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
@@ -157,7 +158,30 @@ if __name__ == "__main__":
     Y0 = (0.99, 0.01, 0.0)
 
     result = run_waves(T_EVAL, BETA_TRUE, GAMMA_TRUE, SIGMA, y0=Y0,
-                       n_initial=100, n_per_wave=30, n_waves=3, threshold=3.0)
+                       n_initial=100, n_per_wave=30, n_waves=3, threshold=3.0, seed=2327)
+
+    hm_samples = sample_uniform(result["emulators"], result["z_obs"],
+                                result["obs_noise_var"], threshold=3.0,
+                                n_samples=10000, rng=np.random.default_rng(0))
+
+
+
+    np.savez("hm_run.npz",
+             samples=hm_samples,
+             total_solves=result["total_solves"],
+             z_obs=result["z_obs"],
+             obs_noise_var=result["obs_noise_var"])
+
+    # --- CONSISTENCY CHECK: same dataset as the SMC run? ---
+    from sir_inference.model.simulator import simulate_dataset
+
+    _, _, data_check, _ = simulate_dataset(BETA_TRUE, GAMMA_TRUE, T_EVAL, SIGMA,
+                                           y0=Y0, observed=("s", "i", "r"), seed=2327)
+    smc = np.load("smc_run.npz")
+    for c in ("s", "i", "r"):
+        assert np.allclose(data_check[c], smc[f"data_{c}"]), \
+            f"DATASET MISMATCH on '{c}' -- HM and SMC are fitting different data!"
+    print("Dataset consistency check: PASSED (HM and SMC use identical data)")
 
     BB, GG = result["grid"]
     history = result["history"]
@@ -166,6 +190,35 @@ if __name__ == "__main__":
 
     print(f"\nFinal: {result['total_solves']} total ODE solves "
           f"(vs ~25,000 for SMC -- the cost contrast).")
+
+    print(f"\nFinal: {result['total_solves']} total ODE solves "
+          f"(vs 17,655 for SMC -- the cost contrast).")
+
+    # --- DIAGNOSTIC: what dominates the implausibility denominator? ---
+    from sir_inference.inference.gp_hm.emulator import emulator_predict, FEATURE_NAMES
+    from sir_inference.inference.gp_hm.implausability import implausibility
+
+    emulators = result["emulators"]
+    z_obs = result["z_obs"]
+    obs_noise_var = result["obs_noise_var"]
+    BB_, GG_ = result["grid"]
+    grid_points = np.column_stack([BB_.ravel(), GG_.ravel()])
+
+    _, I_grid_pts = implausibility(emulators, grid_points, z_obs, obs_noise_var)
+    inside = grid_points[I_grid_pts <= result["threshold"]]
+    print(f"\nVariance decomposition inside the non-implausible region "
+          f"({len(inside)} grid points):")
+
+    _, stds_in = emulator_predict(emulators, inside)
+    emu_var = stds_in ** 2
+
+    print(f"{'feature':18s} {'mean emu_var':>14s} {'obs_noise_var':>14s} {'ratio':>8s}")
+    for j, name in enumerate(FEATURE_NAMES):
+        e = emu_var[:, j].mean();
+        o = obs_noise_var[j]
+        print(f"{name:18s} {e:14.3e} {o:14.3e} {e / o:8.3f}")
+    print("\n  ratio << 1 -> observation-noise-limited (waves cannot help)")
+    print("  ratio ~ 1+ -> emulator matters; refinement should have worked")
 
     # --- Plot: non-implausible region per wave + accumulated training points ---
     n_panels = len(history)

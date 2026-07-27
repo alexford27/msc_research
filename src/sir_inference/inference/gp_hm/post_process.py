@@ -47,7 +47,7 @@ from sir_inference.inference.gp_hm.implausability import implausibility
 
 def sample_uniform(emulators, z_obs, obs_noise_var, threshold=3.0, n_samples=2000,
                    beta_range=(0.0, 2.0), gamma_range=(0.0, 1.0),
-                   pool_factor=60, rng=None, max_tries=20):
+                   pool_factor=25, rng=None, max_tries=20):
     """
     Draw n_samples uniformly from {theta : I_max(theta) <= threshold} by rejection:
     sample candidates over the box, keep those inside the region, repeat until we

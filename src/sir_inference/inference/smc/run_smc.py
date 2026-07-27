@@ -6,7 +6,7 @@ from sir_inference.inference.smc.smc_tempering import (
     effective_sample_size, init_particles, compute_loglikes, next_phi)
 
 
-def smc_sampler(t_obs, data, sigma, n_particles=1000, ess_frac=0.5,
+def smc_sampler(t_obs, data, sigma, n_particles=1000, ess_frac=0.5, resample_frac=0.95,
                 n_move_steps=5, cov_scale=1.0, y0=(0.99, 0.01, 0.0),
                 beta_range=(0.0, 2.0), gamma_range=(0.0, 1.0),
                 rng=None, verbose=True):
@@ -29,7 +29,8 @@ def smc_sampler(t_obs, data, sigma, n_particles=1000, ess_frac=0.5,
         rng = np.random.default_rng()
 
     N = n_particles
-    ess_threshold = ess_frac * N
+    ess_target = ess_frac * N          # what next_phi aims for  (500)
+    ess_threshold = resample_frac * N     # when to resample        (950)
 
     # --- Initialise from prior, equal weights, phi = 0 ---
     particles = init_particles(N, beta_range, gamma_range, rng=rng)
@@ -44,8 +45,8 @@ def smc_sampler(t_obs, data, sigma, n_particles=1000, ess_frac=0.5,
     step = 0
 
     if verbose:
-        print(f"SMC: {N} particles, ESS threshold {ess_threshold:.0f}, "
-              f"{n_move_steps} move steps/particle")
+        print(f"SMC: {N} particles, ESS target {ess_target:.0f}, "
+              f"resample below {ess_threshold:.0f}, {n_move_steps} move steps/particle")
         print(f"{'step':>4} {'phi':>8} {'d_phi':>8} {'ESS':>7} "
               f"{'accept':>7} {'unique':>7} {'solves':>9}")
 
@@ -53,7 +54,7 @@ def smc_sampler(t_obs, data, sigma, n_particles=1000, ess_frac=0.5,
         step += 1
 
         # 1. choose next phi (free)
-        phi_new = next_phi(phi, loglikes, log_weights, ess_threshold)
+        phi_new = next_phi(phi, loglikes, log_weights, ess_target)
         delta = phi_new - phi
 
         # --- accumulate log-evidence: log of mean incremental weight ---
@@ -128,9 +129,16 @@ if __name__ == "__main__":
 
     rng = np.random.default_rng(0)
     result = smc_sampler(t_obs, data, SIGMA, n_particles=1000,
-                         ess_frac=0.5, n_move_steps=3, cov_scale=1.0, rng=rng)
+                          n_move_steps=3, cov_scale=1.0, rng=rng)
 
     particles = result["particles"]
+
+    np.savez("smc_run.npz",
+             particles=result["particles"],
+             log_weights=result["log_weights"],
+             total_solves=result["total_solves"],
+             t_obs=t_obs, sigma=SIGMA,
+             **{f"data_{k}": v for k, v in data.items()})
 
     # --- Plot the SMC posterior over the ridge ---
     fig, ax = plt.subplots(figsize=(7, 6))

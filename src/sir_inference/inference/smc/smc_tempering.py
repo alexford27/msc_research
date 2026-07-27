@@ -188,14 +188,15 @@ if __name__ == "__main__":
         ess = effective_sample_size(log_weights)
 
         # resample when ESS drops to/below target
-
-        if ess <= ESS_THRESHOLD:
+        ess_threshold = 0.95 * N  # rather than 0.5 * N
+        if ess <= ess_threshold:
             particles, log_weights, indices = systematic_resample(particles, log_weights, rng=rng)
-            loglikes = loglikes[indices]  # <-- crucial: keep loglikes aligned with resampled particles
+            loglikes = loglikes[indices]
 
         print(f"{step:>4} {phi_new:>8.4f} {delta:>10.4f} {ess:>8.1f}")
 
         phi = phi_new
+
 
     print(f"\nReached phi = 1 in {step} tempering steps.")
     print("phi-schedule + reweight mechanics. Adding resample+move keeps ESS healthy")
